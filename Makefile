@@ -1,5 +1,6 @@
 CC = gcc
-CFLAGS = -O2 -fopenmp
+CFLAGS = -O2 
+#-fopenmp
 
 FC = gfortran
 FFLAGS = -O2 -fopenmp
