@@ -176,6 +176,16 @@
 #define STREAM_TYPE double
 #endif
 
+// AA: debug failures
+#include <stdlib.h>
+#define exit_if_cond(cond, msg) \
+    do { \
+      if (cond) { \
+        perror(msg); \
+        exit(EXIT_FAILURE); \
+      } \
+    } while (0)
+
 // AA: make these pointers to arrays
 static STREAM_TYPE	*a, *b, *c;
 
@@ -213,7 +223,16 @@ main()
     STREAM_TYPE		scalar;
     double		t, times[4][NTIMES];
 
-    // AA: 
+    // AA: allocate the memory using malloc
+	// TODO: maybe use mmap to pre-fault pages in? let's see performance first.
+	a = malloc(sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE);
+	exit_if_cond(a == NULL, "failed to malloc array a");
+
+	b = malloc(sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE);
+	exit_if_cond(b == NULL, "failed to malloc array b");
+
+	c = malloc(sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE);
+	exit_if_cond(c == NULL, "failed to malloc array c");
 
     /* --- SETUP --- determine precision and check timing --- */
 
