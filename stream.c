@@ -188,6 +188,14 @@
 
 // AA: make these pointers to arrays
 static STREAM_TYPE	*a, *b, *c;
+#ifndef USE_MALLOC
+#include <sys/mman.h>
+#if defined(__APPLE__) && defined(__MACH__)
+#define MAP_FLAGS (MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE)
+#elif __linux__
+#define MAP_FLAGS (MAP_ANONYMOUS | MAP_NORESERVE | MAP_POPULATE)
+#endif
+#endif
 
 static double	avgtime[4] = {0}, maxtime[4] = {0},
 		mintime[4] = {FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX};
@@ -224,16 +232,30 @@ main()
     double		t, times[4][NTIMES];
 
     // AA: allocate the memory using malloc
-	// TODO: maybe use mmap to pre-fault pages in? let's see performance first.
-	a = malloc(sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE);
-	exit_if_cond(a == NULL, "failed to malloc array a");
+	// TODO: free/unmap memory.
+	#ifdef USE_MALLOC
+		a = malloc(sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE);
+		exit_if_cond(a == NULL, "failed to malloc array a");
 
-	b = malloc(sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE);
-	exit_if_cond(b == NULL, "failed to malloc array b");
+		b = malloc(sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE);
+		exit_if_cond(b == NULL, "failed to malloc array b");
 
-	c = malloc(sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE);
-	exit_if_cond(c == NULL, "failed to malloc array c");
+		c = malloc(sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE);
+		exit_if_cond(c == NULL, "failed to malloc array c");
+	#else
+		// AA: mmap settings
+		// - prefault in pages
+		// - memory is read-writable
+		// - do not reserve swap space
+		a = mmap(NULL, sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE, PROT_READ | PROT_WRITE, MAP_FLAGS, 0, 0);
+		exit_if_cond(a == MAP_FAILED, "failed to mmap array a");
 
+		b = mmap(NULL, sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE, PROT_READ | PROT_WRITE, MAP_FLAGS, 0, 0);
+		exit_if_cond(b == MAP_FAILED, "failed to mmap array b");
+
+		c = mmap(NULL, sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE, PROT_READ | PROT_WRITE, MAP_FLAGS, 0, 0);
+		exit_if_cond(c == MAP_FAILED, "failed to mmap array c");
+	#endif
     /* --- SETUP --- determine precision and check timing --- */
 
     printf(HLINE);
