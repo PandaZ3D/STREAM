@@ -176,21 +176,32 @@
 #define STREAM_TYPE double
 #endif
 
+// AA: set the number of arrays
+#define NUM_ARR 5
+
 static STREAM_TYPE	a[STREAM_ARRAY_SIZE+OFFSET],
 			b[STREAM_ARRAY_SIZE+OFFSET],
 			c[STREAM_ARRAY_SIZE+OFFSET];
 
-static double	avgtime[4] = {0}, maxtime[4] = {0},
-		mintime[4] = {FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX};
+static double	avgtime[NUM_ARR] = {0}, maxtime[NUM_ARR] = {0},
+		mintime[NUM_ARR] = {FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX,FLT_MAX};
 
-static char	*label[4] = {"Copy:      ", "Scale:     ",
-    "Add:       ", "Triad:     "};
+static char	*label[NUM_ARR] = {"Copy:      ", "Scale:     ",
+    "Add:       ", "Triad:     ", "Dot Prod:  "};
 
-static double	bytes[4] = {
+// I believe this counts bytes read and written
+static double	bytes[NUM_ARR] = {
+	// a = b
     2 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
+	// a = q * b
     2 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
+	// a = b + c
     3 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
-    3 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE
+	// a = b + q * c
+    3 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE,
+	// a = b * c (3)
+	// q = reduce(a) (1)
+    4 * sizeof(STREAM_TYPE) * STREAM_ARRAY_SIZE
     };
 
 extern double mysecond();
@@ -212,7 +223,7 @@ main()
     int			k;
     ssize_t		j;
     STREAM_TYPE		scalar;
-    double		t, times[4][NTIMES];
+    double		t, times[NUM_ARR][NTIMES];
 
     /* --- SETUP --- determine precision and check timing --- */
 
@@ -345,13 +356,22 @@ main()
 	    a[j] = b[j]+scalar*c[j];
 #endif
 	times[3][k] = mysecond() - times[3][k];
+
+	times[4][k] = mysecond();
+#pragma omp parallel for
+	for (j=0; j<STREAM_ARRAY_SIZE; j++)
+	    a[j] = b[j] * c[j];
+	scalar = 0;
+	for (j=0; j<STREAM_ARRAY_SIZE; j++)
+	    scalar += a[j];
+	times[4][k] = mysecond() - times[4][k];
 	}
 
     /*	--- SUMMARY --- */
 
     for (k=1; k<NTIMES; k++) /* note -- skip first iteration */
 	{
-	for (j=0; j<4; j++)
+	for (j=0; j<NUM_ARR; j++)
 	    {
 	    avgtime[j] = avgtime[j] + times[j][k];
 	    mintime[j] = MIN(mintime[j], times[j][k]);
@@ -360,7 +380,7 @@ main()
 	}
     
     printf("Function    Best Rate MB/s  Avg time     Min time     Max time\n");
-    for (j=0; j<4; j++) {
+    for (j=0; j<NUM_ARR; j++) {
 		avgtime[j] = avgtime[j]/(double)(NTIMES-1);
 
 		printf("%s%12.1f  %11.6f  %11.6f  %11.6f\n", label[j],
@@ -447,13 +467,17 @@ void checkSTREAMresults ()
 	aj = 2.0E0 * aj;
     /* now execute timing loop */
 	scalar = 3.0;
+	STREAM_TYPE sum = 0;
 	for (k=0; k<NTIMES; k++)
         {
             cj = aj;
             bj = scalar*cj;
             cj = aj+bj;
             aj = bj+scalar*cj;
+			aj = bj * cj;
+			sum += aj;
         }
+	scalar = sum;
 
     /* accumulate deltas between observed and expected results */
 	aSumErr = 0.0;
